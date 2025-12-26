@@ -2,12 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FaGoogle, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { HiX } from 'react-icons/hi';
+import { authAPI } from '../services/api';
 
 const AuthModal = ({ isOpen, onClose, onSuccess }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [phone, setPhone] = useState('');
   const [userRole, setUserRole] = useState('renter'); // 'renter' or 'owner'
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -22,6 +26,9 @@ const AuthModal = ({ isOpen, onClose, onSuccess }) => {
     setEmail('');
     setPassword('');
     setConfirmPassword('');
+    setFirstName('');
+    setLastName('');
+    setPhone('');
     setUserRole('renter');
     setError('');
     setShowPassword(false);
@@ -65,17 +72,23 @@ const AuthModal = ({ isOpen, onClose, onSuccess }) => {
       setError('Password is required');
       return false;
     }
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters');
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters');
       return false;
     }
-    if (!isLogin && !confirmPassword) {
-      setError('Please confirm your password');
-      return false;
-    }
-    if (!isLogin && password !== confirmPassword) {
-      setError('Passwords do not match');
-      return false;
+    if (!isLogin) {
+      if (!firstName || !lastName) {
+        setError('First name and last name are required');
+        return false;
+      }
+      if (!confirmPassword) {
+        setError('Please confirm your password');
+        return false;
+      }
+      if (password !== confirmPassword) {
+        setError('Passwords do not match');
+        return false;
+      }
     }
     return true;
   };
@@ -91,28 +104,39 @@ const AuthModal = ({ isOpen, onClose, onSuccess }) => {
 
     setLoading(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      console.log(isLogin ? 'Login data:' : 'Signup data:', {
-        email,
-        password,
-        ...((!isLogin) && { confirmPassword, userRole })
-      });
-      setLoading(false);
+    try {
+      let response;
       
-      // Store user role in localStorage
-      if (!isLogin) {
-        localStorage.setItem('userRole', userRole);
+      if (isLogin) {
+        // Login
+        response = await authAPI.login({ email, password });
       } else {
-        // For demo, default to renter for login
-        localStorage.setItem('userRole', 'renter');
+        // Signup
+        response = await authAPI.signup({
+          email,
+          password,
+          first_name: firstName,
+          last_name: lastName,
+          phone: phone || undefined,
+          user_type: userRole
+        });
       }
       
       if (onSuccess) {
-        onSuccess({ email, isLogin, userRole: isLogin ? 'renter' : userRole });
+        onSuccess({ 
+          email, 
+          isLogin, 
+          userRole: response.user.user_type,
+          user: response.user
+        });
       }
+      
       onClose();
-    }, 1500);
+    } catch (err) {
+      setError(err.message || 'An error occurred. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Handle Google OAuth
@@ -238,6 +262,75 @@ const AuthModal = ({ isOpen, onClose, onSuccess }) => {
                   required
                 />
               </div>
+
+              {/* Name Fields (Signup only) */}
+              <AnimatePresence>
+                {!isLogin && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.3 }}
+                    className="grid grid-cols-2 gap-4"
+                  >
+                    <div>
+                      <label htmlFor="firstName" className="block text-blue-900 font-semibold mb-2">
+                        First Name
+                      </label>
+                      <input
+                        type="text"
+                        id="firstName"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        placeholder="John"
+                        className="w-full border-2 border-blue-100 focus:border-blue-500 bg-white/50 rounded-2xl px-5 py-4 text-lg placeholder-blue-300 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300"
+                        disabled={loading}
+                        required={!isLogin}
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="lastName" className="block text-blue-900 font-semibold mb-2">
+                        Last Name
+                      </label>
+                      <input
+                        type="text"
+                        id="lastName"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        placeholder="Doe"
+                        className="w-full border-2 border-blue-100 focus:border-blue-500 bg-white/50 rounded-2xl px-5 py-4 text-lg placeholder-blue-300 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300"
+                        disabled={loading}
+                        required={!isLogin}
+                      />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Phone Field (Signup only) */}
+              <AnimatePresence>
+                {!isLogin && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <label htmlFor="phone" className="block text-blue-900 font-semibold mb-2">
+                      Phone Number (Optional)
+                    </label>
+                    <input
+                      type="tel"
+                      id="phone"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="555-1234"
+                      className="w-full border-2 border-blue-100 focus:border-blue-500 bg-white/50 rounded-2xl px-5 py-4 text-lg placeholder-blue-300 focus:outline-none focus:ring-4 focus:ring-blue-500/20 transition-all duration-300"
+                      disabled={loading}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {/* Password Field */}
               <div>
